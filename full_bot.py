@@ -17,11 +17,17 @@ from telegram.ext import (
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
+        self.send_header("Content-type", "text/plain")
         self.end_headers()
         self.wfile.write(b"Bot is Running Alive!")
 
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+
 def run_web_server():
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(("0.0.0.0", port), SimpleHTTPRequestHandler)
     print(f"Web server running on port {port}")
     server.serve_forever()
@@ -41,7 +47,7 @@ user_selected_target = {}
 payment_config = {
     "bkash": "017XXXXXXXX",  # ডিফল্ট নাম্বার
     "nagad": "018XXXXXXXX",   # ডিফল্ট নাম্বার
-    "rate_per_member": 0.01  # ১০০ মেম্বার = ১ টাকা (১ মেম্বার = ০.০১ টাকা)
+    "rate_per_member": 0.01  # ১০০ মেম্বার = ১ টাকা
 }
 
 # Conversation States
@@ -182,18 +188,15 @@ async def handle_custom_amount(update: Update, context: ContextTypes.DEFAULT_TYP
     free_left = user_free_quota.get(user_id, 0)
     current_balance = user_balance.get(user_id, 0.0)
 
-    # যদি ফ্রি কোটা দিয়ে কভার হয়ে যায়
     if free_left >= req_count:
         user_free_quota[user_id] -= req_count
         await run_approval_animation(update, req_count)
         return ConversationHandler.END
 
-    # ফ্রি কোটা শেষ, এখন ব্যালেন্স হিসাব হবে
     needed_requests = req_count - free_left
-    cost = needed_requests * payment_config["rate_per_member"] # ক্যালকুলেশন: ১ মেম্বার = ০.০১ টাকা
+    cost = needed_requests * payment_config["rate_per_member"]
 
     if current_balance >= cost:
-        # ব্যালেন্স ও ফ্রি কোটা আপডেট
         user_free_quota[user_id] = 0
         user_balance[user_id] -= cost
         await run_approval_animation(update, req_count)
@@ -243,7 +246,6 @@ async def handle_digits(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "এডমিন ভেরিফাই করে অল্প কিছুক্ষণের মধ্যেই আপনার একাউন্টে টাকা যোগ করে দেবেন।"
     )
 
-    # অ্যাডমিনকে নোটিফিকেশন পাঠাবে (যাতে সহজেই ব্যালেন্স এড করার কমান্ড থাকে)
     admin_msg = (
         f"🔔 **New Deposit Request!**\n\n"
         f"👤 User: {user.full_name} (@{user.username})\n"
@@ -286,7 +288,6 @@ async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await update.message.reply_text(f"✅ User `{target_user}` এর একাউন্টে **{amount} টাকা** যোগ করা হয়েছে।", parse_mode="Markdown")
         
-        # ইউজারকে নোটিফিকেশন পাঠানো
         await context.bot.send_message(
             chat_id=target_user,
             text=f"🎉 আপনার ডিপোজিট সফল হয়েছে!\n💵 **{amount} টাকা** আপনার একাউন্টে যোগ করা হয়েছে।"
